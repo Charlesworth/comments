@@ -20,35 +20,19 @@ type comment struct {
 	TimeUnix string
 }
 
-//storage should be a bucket per pages
-//in each page bucket have each comment as a time / comment storage
-// get can walk through the bucket
-// put can append the bucket
-
 func main() {
-	//set logging
 	log.SetFormatter(&log.JSONFormatter{})
 
-	//init bolt store
-	byteStore.Get("gdfg", "adf")
-
-	//set port
-	port := ":3000"
-	// if len(os.Args) == 1 {
-	// 	port = ":" + os.Args[1]
-	// }
-
-	//start the server and listen for requests
 	http.Handle("/", newRouter())
-	log.Println("Comment service started: listening on", port)
-	log.Fatal(http.ListenAndServe(port, nil))
+	log.Println("Comment service started")
+	log.Fatal(http.ListenAndServe(":3000", nil))
 }
 
 func newRouter() *httprouter.Router {
 	router := httprouter.New()
 	router.GET("/:page", getComments)
 	router.PUT("/:page", putComment)
-	// router.DELETE("/:page/:time", putComment)
+	router.DELETE("/:page/:time", deleteComment)
 	router.GET("/", getCmds)
 	return router
 }
@@ -56,50 +40,51 @@ func newRouter() *httprouter.Router {
 func getCmds(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	log.WithFields(log.Fields{
 		"IP": r.RemoteAddr,
-	}).Info("GET / request")
+	}).Info("GET /")
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "Comment Service: \nGET /:page \nPUT /:page \nDELETE /:page/:time")
 	return
 }
 
-// //should just walk through the bucket and return all of the comments in itself
-// func deleteComment(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-// 	pageName := params.ByName("page")
-// 	time := params.ByName("time")
-// 	log.WithFields(log.Fields{
-// 		"IP":   r.RemoteAddr,
-// 		"page": pageName,
-// 	}).Info("DELETE comment request")
-//
-// 	byteStore.Delete()
-// 	return
-// }
-
-//should just walk through the bucket and return all of the comments in itself
-func getComments(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	pageName := params.ByName("page")
+func deleteComment(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	page := params.ByName("page")
+	time := params.ByName("time")
 	log.WithFields(log.Fields{
 		"IP":   r.RemoteAddr,
-		"page": pageName,
-	}).Info("GET comments request")
+		"page": page,
+	}).Info("DELETE /:page/:time")
 
-	encodedCommentSlice := byteStore.GetBucket(pageName)
+	byteStore.Delete(page, time)
+	return
+}
+
+func getComments(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	page := params.ByName("page")
+	log.WithFields(log.Fields{
+		"IP":   r.RemoteAddr,
+		"page": page,
+	}).Info("GET /:page")
+
+	encodedCommentSlice := byteStore.GetBucket(page)
 	if encodedCommentSlice == nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	arrayPrint(w, encodedCommentSlice)
+	w.WriteHeader(http.StatusOK)
+	printComments(w, encodedCommentSlice)
 	return
 }
 
-func arrayPrint(w http.ResponseWriter, byteSlice [][]byte) {
+func printComments(w http.ResponseWriter, byteSlice [][]byte) {
+	//if single element, print and return
 	if len(byteSlice) == 1 {
 		fmt.Fprint(w, string(byteSlice[0]))
 		return
 	}
 
+	//else print as array
 	fmt.Fprint(w, "[")
 	len := len(byteSlice)
 	for i, val := range byteSlice {
@@ -110,7 +95,6 @@ func arrayPrint(w http.ResponseWriter, byteSlice [][]byte) {
 		}
 		fmt.Fprint(w, ",")
 	}
-	return
 }
 
 type inputComment struct {
@@ -118,18 +102,17 @@ type inputComment struct {
 	Poster string
 }
 
-//should require a msg and name, will set time itself
 func putComment(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	pageName := params.ByName("page")
+	page := params.ByName("page")
 	rlog := log.WithFields(log.Fields{
 		"IP":   r.RemoteAddr,
-		"page": pageName,
+		"page": page,
 	})
-	rlog.Info("PUT comment request")
+	rlog.Info("PUT /:page")
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		rlog.Error("Unable to read request body")
+		rlog.Error("Unable to read request body, error:", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -145,7 +128,7 @@ func putComment(w http.ResponseWriter, r *http.Request, params httprouter.Params
 	commentTime := strconv.FormatInt(time.Now().UnixNano(), 10)
 	storedComment := comment{
 		Poster:   newComment.Poster,
-		Page:     pageName,
+		Page:     page,
 		Msg:      newComment.Msg,
 		TimeUnix: commentTime,
 	}
