@@ -12,9 +12,9 @@ A comments service for static sites, WIP branch
 - FUTURE: GET /:url?withScript=true (js with comment HTML and JSON data embedded) !!check if having POST form data will make a diff to using query string
 
 #### persistant storage
-- byteStore (boltDB backend)
+- byteStore (boltDB backend) DONE
 
 #### user config
-- set port
+- set port DONE
 - FUTURE: add .js file that ?withScript=true will embed it
 - FUTURE: backup backend support like aws s3 and google cloud storage

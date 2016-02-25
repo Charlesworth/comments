@@ -94,11 +94,31 @@ func getComments(w http.ResponseWriter, r *http.Request, params httprouter.Param
 	}
 
 	w.WriteHeader(http.StatusOK)
-	printComments(w, encodedCommentSlice)
+
+	if callback, exists := queryStringCallback(r); exists {
+		printJSONPComments(w, callback, encodedCommentSlice)
+		return
+	}
+	printJSONComments(w, encodedCommentSlice)
 	return
 }
 
-func printComments(w http.ResponseWriter, byteSlice [][]byte) {
+func queryStringCallback(r *http.Request) (callbackName string, ok bool) {
+	qsValues := r.URL.Query()
+	callback := qsValues.Get("callback")
+	if callback == "" {
+		return "", false
+	}
+	return callback, true
+}
+
+func printJSONPComments(w http.ResponseWriter, callbackName string, byteSlice [][]byte) {
+	fmt.Fprint(w, callbackName+"({\"Comments\":")
+	printJSONComments(w, byteSlice)
+	fmt.Fprint(w, "});")
+}
+
+func printJSONComments(w http.ResponseWriter, byteSlice [][]byte) {
 	//if single element, print and return
 	if len(byteSlice) == 1 {
 		fmt.Fprint(w, string(byteSlice[0]))
