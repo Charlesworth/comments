@@ -7,7 +7,7 @@ A comments service for static sites, WIP branch
 - POST from a Form (use request.ParseForm() then act on the r.Form to access)
 
 #### outputs
-- GET /:url (JSON)
+- GET /:url (JSON with CORS header "Access-Control-Allow-Origin:pageName")
 - GET /:url?callback=whatever (JSONP)
 - FUTURE: GET /:url?withScript=true (js with comment HTML and JSON data embedded) !!check if having POST form data will make a diff to using query string
 
@@ -18,3 +18,6 @@ A comments service for static sites, WIP branch
 - set port DONE
 - FUTURE: add .js file that ?withScript=true will embed it
 - FUTURE: backup backend support like aws s3 and google cloud storage
+
+#### tests
+- get good (80%+) test coverage.
