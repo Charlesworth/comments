@@ -45,9 +45,9 @@ func newRouter() *httprouter.Router {
 }
 
 func getPort() string {
-	port := flag.Int("port", 8000, "the port to be used by the service")
+	portPtr := flag.Int("port", 8000, "the port to be used by the service")
 	flag.Parse()
-	return ":" + string(*port)
+	return fmt.Sprintf(":%v", *portPtr)
 }
 
 func startByteStore() {
