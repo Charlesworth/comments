@@ -4,7 +4,6 @@ import (
 	json "encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
@@ -151,32 +150,22 @@ func postComment(w http.ResponseWriter, r *http.Request, params httprouter.Param
 	})
 	rlog.Info("POST /:page")
 
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		rlog.Error("Unable to read request body, error:", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+	r.ParseForm()
 
-	newComment := inputComment{}
-	err = json.Unmarshal(body, &newComment)
-	if err != nil {
-		rlog.Error("Unable to unmarshal body json with error:", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+	poster := r.FormValue("poster")
+	msg := r.FormValue("msg")
 
 	commentTime := strconv.FormatInt(time.Now().UnixNano(), 10)
 	storedComment := comment{
-		Poster:   newComment.Poster,
+		Poster:   poster,
 		Page:     page,
-		Msg:      newComment.Msg,
+		Msg:      msg,
 		TimeUnix: commentTime,
 	}
 	encodedComment, err := json.Marshal(storedComment)
 
 	if err != nil {
-		rlog.Error("unable to PUT comment into byte store:", err)
+		rlog.Error("unable to POST comment into byte store:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
