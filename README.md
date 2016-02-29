@@ -7,8 +7,8 @@ A comments service for static sites, WIP branch
 - POST from a Form (use request.ParseForm() then act on the r.Form to access)
 
 #### outputs
-- GET /:url (JSON with CORS header "Access-Control-Allow-Origin:pageName")
-- GET /:url?callback=whatever (JSONP)
+- GET /:url (JSON with CORS header "Access-Control-Allow-Origin:pageName") DONE
+- GET /:url?callback=whatever (JSONP) DONE
 - FUTURE: GET /:url?withScript=true (js with comment HTML and JSON data embedded) !!check if having POST form data will make a diff to using query string
 
 #### persistant storage

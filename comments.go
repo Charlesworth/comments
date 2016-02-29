@@ -92,6 +92,8 @@ func getComments(w http.ResponseWriter, r *http.Request, params httprouter.Param
 		return
 	}
 
+	// enable CORS header and set as origin URL
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 
 	if callback, exists := queryStringCallback(r); exists {
