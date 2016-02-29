@@ -25,11 +25,14 @@ var bs byteStore.ByteStore
 func init() {
 	log.SetFormatter(&log.JSONFormatter{})
 	startByteStore()
+	parseFlags()
 }
+
+var port string
+var disableCORS bool
 
 func main() {
 	http.Handle("/", newRouter())
-	port := getPort()
 	log.Println("Comment service started on port", port)
 	log.Fatal(http.ListenAndServe(port, nil))
 }
@@ -43,10 +46,12 @@ func newRouter() *httprouter.Router {
 	return router
 }
 
-func getPort() string {
+func parseFlags() {
+	corsPtr := flag.Bool("disableCORS", false, "disable Cross Origin Request Sharing")
 	portPtr := flag.Int("port", 8000, "the port to be used by the service")
 	flag.Parse()
-	return fmt.Sprintf(":%v", *portPtr)
+	port = fmt.Sprintf(":%v", *portPtr)
+	disableCORS = *corsPtr
 }
 
 func startByteStore() {
@@ -93,7 +98,9 @@ func getComments(w http.ResponseWriter, r *http.Request, params httprouter.Param
 	}
 
 	// enable CORS header and set as origin URL
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if !disableCORS {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+	}
 	w.WriteHeader(http.StatusOK)
 
 	if callback, exists := queryStringCallback(r); exists {
