@@ -2,14 +2,14 @@ package main
 
 import (
 	json "encoding/json"
+	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	byteStore "github.com/charlesworth/byteStore"
+	"github.com/charlesworth/byteStore"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -20,21 +20,41 @@ type comment struct {
 	TimeUnix string
 }
 
-func main() {
-	log.SetFormatter(&log.JSONFormatter{})
+var bs byteStore.ByteStore
 
+func init() {
+	log.SetFormatter(&log.JSONFormatter{})
+	startByteStore()
+}
+
+func main() {
 	http.Handle("/", newRouter())
-	log.Println("Comment service started")
-	log.Fatal(http.ListenAndServe(":3000", nil))
+	port := getPort()
+	log.Println("Comment service started on port", port)
+	log.Fatal(http.ListenAndServe(port, nil))
 }
 
 func newRouter() *httprouter.Router {
 	router := httprouter.New()
 	router.GET("/:page", getComments)
-	router.PUT("/:page", putComment)
+	router.POST("/:page", postComment)
 	router.DELETE("/:page/:time", deleteComment)
 	router.GET("/", getCmds)
 	return router
+}
+
+func getPort() string {
+	portPtr := flag.Int("port", 8000, "the port to be used by the service")
+	flag.Parse()
+	return fmt.Sprintf(":%v", *portPtr)
+}
+
+func startByteStore() {
+	var err error
+	bs, err = byteStore.New("comments.byteStore")
+	if err != nil {
+		log.Fatalln(err)
+	}
 }
 
 func getCmds(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
@@ -43,7 +63,7 @@ func getCmds(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	}).Info("GET /")
 
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Comment Service: \nGET /:page \nPUT /:page \nDELETE /:page/:time")
+	fmt.Fprintf(w, "Comment Service: \nGET /:page \nPOST /:page \nDELETE /:page/:time")
 	return
 }
 
@@ -55,7 +75,7 @@ func deleteComment(w http.ResponseWriter, r *http.Request, params httprouter.Par
 		"page": page,
 	}).Info("DELETE /:page/:time")
 
-	byteStore.Delete(page, time)
+	bs.Delete(page, time)
 	return
 }
 
@@ -66,18 +86,40 @@ func getComments(w http.ResponseWriter, r *http.Request, params httprouter.Param
 		"page": page,
 	}).Info("GET /:page")
 
-	encodedCommentSlice := byteStore.GetBucket(page)
+	encodedCommentSlice := bs.GetBucketValues(page)
 	if encodedCommentSlice == nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
+	// enable CORS header and set as origin URL
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
-	printComments(w, encodedCommentSlice)
+
+	if callback, exists := queryStringCallback(r); exists {
+		printJSONPComments(w, callback, encodedCommentSlice)
+		return
+	}
+	printJSONComments(w, encodedCommentSlice)
 	return
 }
 
-func printComments(w http.ResponseWriter, byteSlice [][]byte) {
+func queryStringCallback(r *http.Request) (callbackName string, ok bool) {
+	qsValues := r.URL.Query()
+	callback := qsValues.Get("callback")
+	if callback == "" {
+		return "", false
+	}
+	return callback, true
+}
+
+func printJSONPComments(w http.ResponseWriter, callbackName string, byteSlice [][]byte) {
+	fmt.Fprint(w, callbackName+"({\"Comments\":")
+	printJSONComments(w, byteSlice)
+	fmt.Fprint(w, "});")
+}
+
+func printJSONComments(w http.ResponseWriter, byteSlice [][]byte) {
 	//if single element, print and return
 	if len(byteSlice) == 1 {
 		fmt.Fprint(w, string(byteSlice[0]))
@@ -102,45 +144,35 @@ type inputComment struct {
 	Poster string
 }
 
-func putComment(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+func postComment(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	page := params.ByName("page")
 	rlog := log.WithFields(log.Fields{
 		"IP":   r.RemoteAddr,
 		"page": page,
 	})
-	rlog.Info("PUT /:page")
+	rlog.Info("POST /:page")
 
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		rlog.Error("Unable to read request body, error:", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+	r.ParseForm()
 
-	newComment := inputComment{}
-	err = json.Unmarshal(body, &newComment)
-	if err != nil {
-		rlog.Error("Unable to unmarshal body json with error:", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+	poster := r.FormValue("poster")
+	msg := r.FormValue("msg")
 
 	commentTime := strconv.FormatInt(time.Now().UnixNano(), 10)
 	storedComment := comment{
-		Poster:   newComment.Poster,
+		Poster:   poster,
 		Page:     page,
-		Msg:      newComment.Msg,
+		Msg:      msg,
 		TimeUnix: commentTime,
 	}
 	encodedComment, err := json.Marshal(storedComment)
 
 	if err != nil {
-		rlog.Error("unable to PUT comment into byte store:", err)
+		rlog.Error("unable to POST comment into byte store:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	byteStore.Put(storedComment.Page, commentTime, encodedComment)
+	bs.Put(storedComment.Page, commentTime, encodedComment)
 	rlog.Info("comment added to byteStore: ", string(encodedComment))
 
 	w.WriteHeader(http.StatusOK)

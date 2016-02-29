@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<script type="application/javascript">
+  function testcall(data){
+    window.onload = function() {
+      document.getElementById('commentsJSON').innerHTML = JSON.stringify(data);
+    }
+  console.log(data.Comments[1].Poster);
+  }
+</script>
+
+<script type="application/javascript"
+src="http://0.0.0.0:8000/test?callback=testcall">
+</script>
+</head>
+
+<body>
+
+<p id="commentsJSON"></p>
+
+</body>
+</html>
